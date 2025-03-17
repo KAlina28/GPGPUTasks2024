@@ -243,7 +243,7 @@ int main() {
             t.nextLap();
         }
         std::cout << "Result data transfer time: " << t.lapAvg() << "+-" << t.lapStd() << " s" << std::endl;
-        std::cout << "VRAM -> RAM bandwidth: " << n * 1.0 * sizeof(float) / (1024 * 1024 * 1024) / t.lapAvg() << " GB/s"
+        std::cout << "VRAM -> RAM bandwidth: " << n * 1.0 * sizeof(float) / 1024 / 1024 / 1024 / t.lapAvg() << " GB/s"
                   << std::endl;
     }
 

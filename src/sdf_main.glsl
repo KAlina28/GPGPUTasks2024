@@ -5,6 +5,11 @@ float sdSphere(vec3 p, float r)
     return length(p) - r;
 }
 
+float sdTorus(vec3 p, vec2 t) {
+    vec2 q = vec2(length(p.xz)-t.x, p.y);
+    return length(q)-t.y;
+}
+
 // XZ plane
 float sdPlane(vec3 p)
 {
@@ -14,7 +19,7 @@ float sdPlane(vec3 p)
 // косинус который пропускает некоторые периоды, удобно чтобы махать ручкой не все время
 float lazycos(float angle)
 {
-    int nsleep = 10;
+    int nsleep = 4;
     
     int iperiod = int(angle / 6.28318530718) % nsleep;
     if (iperiod < 3) {
@@ -25,24 +30,81 @@ float lazycos(float angle)
 }
 
 // возможно, для конструирования тела пригодятся какие-то примитивы из набора https://iquilezles.org/articles/distfunctions/
+float sdCapsule(vec3 p, vec3 a, vec3 b, float r)
+{
+    vec3 pa = p - a;
+    vec3 ba = b - a;
+    float h = clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0);
+    return length(pa - ba*h) - r;
+}
 // способ сделать гладкий переход между примитивами: https://iquilezles.org/articles/smin/
+float smin( float a, float b, float k )
+{
+    k *= 1.0/(1.0-sqrt(0.5));
+    return max(k,min(a,b)) -
+           length(max(k-vec2(a,b),0.0));
+}
+
 vec4 sdBody(vec3 p)
 {
-    float d = 1e10;
+    float body = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
 
-    // TODO
-    d = sdSphere((p - vec3(0.0, 0.35, -0.7)), 0.35);
-    
-    // return distance and color
+    vec3 leftLegStart = vec3(-0.25, 0.2, -0.7);
+    vec3 leftLegEnd = vec3(-0.25, -0.6, -0.7);
+
+    vec3 rightLegStart = vec3(0.25, 0.2, -0.7);
+    vec3 rightLegEnd = vec3(0.25, -0.6, -0.7);
+
+    float wave = lazycos(iTime * 2.0) * 0.1;
+    leftLegEnd.x += wave;
+    rightLegEnd.x -= wave;
+
+    float leftLeg = sdCapsule(p, leftLegStart, leftLegEnd, 0.1);
+    float rightLeg = sdCapsule(p, rightLegStart, rightLegEnd, 0.1);
+
+    vec3 leftArmStart = vec3(-0.3, 0.4, -0.7);
+    vec3 leftArmEnd = vec3(-0.6, 0.3, -0.7);
+
+    vec3 rightArmStart = vec3(0.3, 0.4, -0.7);
+    vec3 rightArmEnd = vec3(0.6, 0.3, -0.7);
+
+    float armWave = sin(iTime * 3.0) * 0.1;
+    leftArmEnd.y += armWave;
+    rightArmEnd.y += armWave;
+    float leftArm = sdCapsule(p, leftArmStart, leftArmEnd, 0.08);
+    float rightArm = sdCapsule(p, rightArmStart, rightArmEnd, 0.08);
+
+    float d = body;
+    d = smin(d, leftLeg, 0.05);
+    d = smin(d, rightLeg, 0.05);
+    d = smin(d, leftArm, 0.05);
+    d = smin(d, rightArm, 0.05);
+
     return vec4(d, vec3(0.0, 1.0, 0.0));
 }
 
 vec4 sdEye(vec3 p)
-{
-
-    vec4 res = vec4(1e10, 0.0, 0.0, 0.0);
+{    
+    float leftEye = sdSphere(p - vec3(-0.15, 0.4, -0.2), 0.07);
+    float rightEye = sdSphere(p - vec3(0.15, 0.4, -0.2), 0.07);
     
-    return res;
+    float leftPupil = sdSphere(p - vec3(-0.125, 0.4, -0.15), 0.04);
+    float rightPupil = sdSphere(p - vec3(0.125, 0.4, -0.15), 0.04);
+    
+    float nose = sdSphere(p - vec3(0.0, 0.35, -0.15), 0.04);
+    
+    float eyes = min(leftEye, rightEye);
+    float pupils = min(leftPupil, rightPupil);
+    float d = min(eyes, nose);
+    d = min(d, pupils);
+    
+    if (d == leftPupil || d == rightPupil) {
+        return vec4(d, vec3(0.0));
+    } else if (d == leftEye || d == rightEye) {
+        return vec4(d, vec3(1.0));
+    } else {
+        return vec4(d, vec3(1.0, 0.0, 0.0));
+    }
 }
 
 vec4 sdMonster(vec3 p)
@@ -66,10 +128,14 @@ vec4 sdTotal(vec3 p)
 {
     vec4 res = sdMonster(p);
     
+    float torus = sdTorus(p - vec3(0.0, 0.25, -1.0), vec2(0.6, 0.04));
+    if(torus < res.x) {
+        res = vec4(torus, vec3(0.29,0.5,0.36));
+    }
     
     float dist = sdPlane(p);
     if (dist < res.x) {
-        res = vec4(dist, vec3(1.0, 0.0, 0.0));
+        res = vec4(dist, vec3(1.0, 2.0, 2.0));
     }
     
     return res;
